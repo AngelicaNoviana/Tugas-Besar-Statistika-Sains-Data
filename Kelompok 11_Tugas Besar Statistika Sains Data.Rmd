@@ -1,0 +1,348 @@
+---
+title: "Tugas SSD Modul3"
+author: "Kelompok 11"
+date: "2023-03-14"
+output: html_document
+---
+
+```{r}
+library(knitr)
+library(kableExtra)
+# create a data frame
+anggota <- data.frame(NIM = c(121450031, 121450064, 121450121, 121450139),
+ NAMA = c("Hartiti Fadilah", "Angelica Noviana", "Ibnu Farhan Al-Ghifari", "Nabilah Andika Fitriati"))
+# print the table using kableExtra
+kable(anggota) %>%
+ kable_styling(full_width = FALSE)
+```
+
+Panggil library yang digunakan:
+```{r}
+library(tidyverse)
+library(mlr3verse)
+library(mlr3tuning)
+library(paradox)
+library(kknn)
+library(ggpubr)
+library(smotefamily)
+library(readr)
+library(readr)
+library(ggplot2)
+```
+
+Impor Data di R
+```{r}
+library(readr)
+online <- read.csv("C:/Users/ibnuf/Downloads/online_shoppers_intention.csv" , stringsAsFactors = TRUE)
+```
+Pertama,Mengubah tipe data dari kolom-kolom yang bertipe data integer menjadi tipe data numeric. Dalam hal ini, perintah "across(where(is.integer), as.numeric)" digunakan untuk memilih seluruh kolom yang bertipe data integer dalam objek data frame 'online', kemudian mengubah tipe data kolom tersebut menjadi numeric. Setelah itu, objek data frame 'online' yang telah dimodifikasi disimpan kembali ke variabel yang sama yaitu 'online'.
+```{r}
+online <- online %>% mutate(across(where(is.integer), as.numeric))
+str(online)
+glimpse(online)
+summary(online)
+```
+
+```{r}
+online$Revenue <- factor(online$Revenue)
+online$Month <- as.numeric(online$Month)
+online$VisitorType <- as.numeric(online$VisitorType)
+#online$Revenue <- as.numeric(online$Revenue)
+online$Month <- as.numeric(online$Month)
+online$Weekend <- as.numeric(online$Weekend)
+```
+
+
+```{r}
+set.seed(500)
+tesk_online = TaskClassif$new(id = "online",
+                              backend = online,
+                              target = "Revenue",
+                              positive = "TRUE")
+tesk_online
+```
+
+Metode holdout mempartisi data yang terdapat dalam objek Task ke dalam satu set pelatihan (untuk melatih model) dan satu set pengujian (untuk memperkirakan kinerja generalisasi).
+
+Argumen utama dalam fungsi TaskClassif$new adalah sebagai berikut:
+id yang merupakan nama dari task (online), backend adalah data yang ingin dimodelkan dengan catatan peubah respon-nya harus berupa peubah numerik, target adalah nama kolom yang dijadikan peubah respon dalam kode ini kami menggunakan target berupa "Revenue"
+
+
+```{r}
+learner1 = lrn("classif.log_reg", predict_type = "prob")
+learner1
+```
+```{r}
+learner2 = lrn("classif.lda", predict_type = "prob")
+learner2
+
+```
+
+Berdasarkan output diatas argumen-argumen yang bisa digunakan dalam classif.log_reg dan classif.lda ada di kolom id. Selanjutnya, kolom class menunjukkan tipe data argumen tersebut. Kolom lower, upper dan levels merupakan isi/nilai dari argumen tersebut.
+    
+```{r}
+msr_tbl = as.data.table(mlr_measures)
+msr_tbl[1:5, .(key, label, task_type)]
+```
+
+```{r}
+msr_tbl[1:5, .(key, packages, predict_type, task_properties)]
+```
+
+
+```{r}
+as.data.table(lrn("classif.log_reg")$param_set)
+```
+
+```{r}
+as.data.table(lrn("classif.lda")$param_set)
+```
+
+# Pengukuran
+## Kode di bawah ini merupakan contoh penggunaan holdout (specified using rsmp("holdout")) untuk regresi logistik
+
+```{r}
+resampling = rsmp("holdout")
+rr = resample(task = tesk_online, learner1,resampling = resampling)
+rr$aggregate(msr("classif.acc"))
+class(ordered)
+```
+
+
+
+#Strategi Resampling
+#Query
+
+Perintah query yang digunakan dalam package mlr3
+```{r}
+as.data.table(mlr_resamplings)
+```
+
+Setelah kita memilih query apa yang akan digunakan dalam teknik resampling maka selanjutnya adalah membangun resampling melalui fungsi rsmp()
+
+```{r}
+resampling = rsmp("holdout")
+print(resampling)
+resampling1 = rsmp("holdout", ratio = 0.8)
+resampling$param_set$values = list(ratio = 0.5)
+```
+Berdasarkan metode tersebut didapatkan paratameter ratio dari iteration 1 adalah 0.6667.
+
+    Holdout metode akan menggunakan 2/3 data sebagai data training dan 1/3 sebagai data test.
+
+```{r}
+resampling1
+```
+
+```{r}
+resampling = rsmp("cv", folds = 10)
+resampling
+```
+
+# Instantiation
+```{r}
+resampling = rsmp("holdout", ratio = 0.8)
+resampling$instantiate(tesk_online)
+train_ids = resampling$train_set(1)
+test_ids = resampling$test_set(1)
+str(train_ids)
+str(test_ids)
+```
+Holdout hanya mengestimasi performa dengan menggunakan single set atau satu set. Untuk mendapatkan estimasi kinerja yang lebih andal dengan memanfaatkan semua data yang tersedia, kita dapat menggunakan strategi resampling lainnya. Misalnya, menyiapkan 10-fold cross-validation melalui pemanggilan metode \$instantiate() pada Task untuk menghasilkan pemisahan uji train untuk task tertentu.
+
+#Eksekusi
+```{r}
+resampling = rsmp("cv", folds = 4)
+rr = resample(tesk_online, learner1, resampling)
+```
+
+```{r}
+print(rr)
+
+```
+
+```{r}
+as.data.table(rr)
+
+```
+
+    Menggunakan 4-fold cross-validation sebagai strategi resampling. Objek ResampleResult yang dihasilkan (disimpan sebagai rr) menyediakan berbagai metode untuk mengakses informasi yang disimpan.
+
+```{r}
+acc = rr$score(msr("classif.acc"))
+acc[, .(iteration, classif.acc)]
+
+```
+
+```{r}
+ggplot(acc, aes(x = iteration, y = classif.acc)) + 
+  geom_point(color = "blue", size = 10) + 
+  xlab("Iteration") + 
+  ylab("Classification Accuracy") + 
+  ggtitle("Classification Accuracy by Iteration")
+```
+
+
+
+
+
+Dalam contoh kode di atas, secara eksplisit menggunakan akurasi klasifikasi (classif.acc) sebagai ukuran kinerja dan meneruskannya ke metode $score() untuk mendapatkan perkiraan kinerja setiap iterasi resampling secara terpisah
+
+```{r}
+rr$aggregate(msr("classif.acc"))
+```
+    Objek Measure ke metode $aggregate() untuk menghitung skor agregate di semua iterasi resampling
+```{r}
+rr$aggregate(msr("classif.acc", average = "micro"))
+```
+### Inspeksi
+
+```{r}
+rrdt = as.data.table(rr)
+rrdt
+
+```
+
+
+```{r}
+rrdt$prediction
+```
+
+
+```{r}
+all.equal(rrdt$prediction, rr$predictions())
+```
+
+```{r}
+pred = rr$prediction()
+pred
+```
+
+```{r}
+pred$score(msr("classif.acc"))
+```
+    Pada kode di bawah ini menerapkam stratum pada dataset online - Sebelum dilakukan stratum
+    
+```{r}
+prop.table(table(tesk_online$data(cols = "Revenue")))
+
+```
+saat menggunakan Stratum
+```{r}
+r = rsmp("cv", folds = 10)
+r$instantiate(tesk_online)
+prop.table(table(tesk_online$data(rows = r$test_set(10), cols = "Revenue")))
+
+```
+
+### Confusion Matrix-based Measures
+
+Dalam package mlr3measures memungkinkan untuk menghitung tambahan beberapa pengukuran yang berbasis confusion matrix.
+
+```{r}
+splits = partition(tesk_online, ratio = 0.8)
+
+learner1$train(tesk_online, splits$train)
+pred = learner1$predict(tesk_online, splits$test)
+pred$confusion
+
+```
+
+```{r}
+mlr3measures::confusion_matrix(truth = pred$truth,
+  response = pred$response, positive = tesk_online$positive)
+```
+
+```{r}
+pred$set_threshold(0.99)
+mlr3measures::confusion_matrix(pred$truth, pred$response, tesk_online$positive)
+```
+
+```{r}
+pred$set_threshold(0.01)
+mlr3measures::confusion_matrix(pred$truth, pred$response, tesk_online$positive)
+```
+
+```{r}
+thresholds = sort(pred$prob[,1])
+
+rocvals = data.table::rbindlist(lapply(thresholds, function(t) {
+  pred$set_threshold(t)
+  data.frame(
+    threshold = t,
+    FPR = pred$score(msr("classif.fpr")),
+    TPR = pred$score(msr("classif.tpr"))
+  )
+}))
+
+head(rocvals)
+```
+
+Jika pengklasifikasi biner memprediksi probabilitas, kita dapat menetapkan ambang batas untuk memotong probabilitas dan menugaskannya ke kelas positif dan negatif. Meningkatkan ambang batas untuk mengidentifikasi kasus positif dapat menghasilkan lebih banyak prediksi negatif dan lebih sedikit prediksi positif. 
+
+```{r}
+plot(rocvals,col = c( "steelblue"))
+
+```
+```{r}
+boxplot(rocvals, col = c("red", "blue", "steelblue"))
+```
+
+
+```{r}
+ggplot(rocvals, aes(x = FPR, y = TPR)) +
+  geom_line() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") +
+  labs(title = "ROC Curve",
+       x = "False Positive Rate",
+       y = "True Positive Rate")+
+  theme(plot.background = element_rect(fill = "grey90"))
+```
+
+```{r}
+standardize <- po("scale")
+smote <- po("smote",dup_size=1)
+standardize$train(list(tesk_online))[[1]]$data() %>% glimpse
+```
+```{r}
+reglog <- GraphLearner$new(standardize %>>% smote %>>% lrn("classif.log_reg"))
+reglog
+```
+```{r}
+lda <- GraphLearner$new(standardize %>>%
+smote %>>% lrn("classif.lda",method="moment"))
+lda
+```
+
+```{r}
+# train model dengan keseluruhan data
+lda$train(task = tesk_online)
+coef_lda <- coef(lda$model$classif.lda$model)
+coef_lda
+```
+
+
+```{r}
+predictedLD <- predict(lda$model$classif.lda$model,newdata = online)
+plotLD <- data.frame(predictedLD$x,class=predictedLD$class)
+glimpse(plotLD)
+```
+```{r}
+plotLD %>% count(class)
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(plotLD, aes(x = LD1, y = class, color = class)) +
+  geom_point() +
+  labs(x = "LD1", y = "class", color = "Class") +
+  ggtitle("Scatter Plot LDA") +
+  theme_minimal()
+
+```
+
+## Kesimpulan
+
+Kesimpulan yang didapatkan pada kode r ini adalah dilakukan proses statistik dengan metode Resampling yang dirancang untuk menyeimbangkan data atau digunakan saat data sedikit. Strategi sederhana yang umum adalah metode holdout, yang secara acak mempartisi data menjadi satu set pelatihan dan pengujian menggunakan rasio pemisahan yang telah ditentukan sebelumnya. Pada dataset online_shoppers_intention terdapat beberapa missing value yang harus dihapus. Pembagian data yang telah dilakukan dengan 80% data ditraining dan sisanya adalah data testing, lalu data dikelompokan  dalam kelas-kelas dengan menggunakan LDA yang dilanjutkan dengan analisis regresi logistik. ROC dilakukan untuk mengetahui hubungan antara value true-positive dan false-positive, dimana terlihat bahwa True-positive yang didapatkan cukup besar sehingga thresholdnya bagus yang ditunjukkan oleh luas AUC yang besar.
+
